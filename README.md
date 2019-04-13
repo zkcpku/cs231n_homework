@@ -2,6 +2,6 @@
 
 - 正在慢慢整理...
   - [x] [assignment1](assignment1/README.html)
-  - [ ] assignment2
+  - [x] [assignment2](assignment2/README.html)
   - [ ] assignment3
 
