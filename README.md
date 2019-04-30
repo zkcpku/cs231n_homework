@@ -1,6 +1,6 @@
 # cs231n作业笔记
 
-> 2018版<https://cs231n.github.io/assignments2018/>
+> 2018版https://github.com/cs231n/cs231n.github.io/tree/master/assignments/2018
 >
 > pytorch实现
 
