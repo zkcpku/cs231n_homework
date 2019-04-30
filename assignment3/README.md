@@ -377,3 +377,226 @@
 
 -  **特征反演 Feature Inversion**：这里如果将 **特征权值style_weight设置为0**，即相当于从一个噪声图片生成原图
 
+## Generative Adversarial Networks (GANs)
+
+- 论文基础：<https://arxiv.org/abs/1406.2661>、<https://arxiv.org/abs/1701.00160>
+
+- 判别模型(Discriminative Model)：可以理解为做分类打标签的模型，包括image caption（可以看作是在句子空间中的标签）
+- 生成模型(Generative Model)：<https://www.cnblogs.com/lifegoesonitself/p/3437747.html>
+
+>We will train the **discriminator** to take images, and classify them as being real (belonging to the training set) or fake (not present in the training set). 
+>
+>Our other network, called the **generator**, will take random noise as input and transform it using a neural network to produce images. The goal of the generator is to fool the discriminator into thinking the images it produced are real.
+>
+>即：
+>
+>- 生成网络：从随机噪声中生成逼真图片试图愚弄判别网络
+>- 判别网络：试图区分真实图片和生成的假图片
+
+- 目标函数：![1556613934475](gan.png)
+
+![1556614058942](gan_2.png)
+
+- 常规做法：
+
+  1. update the **generator** ($G$) to minimize the probability of the __discriminator making the correct choice__. 
+  2. update the **discriminator** ($D$) to maximize the probability of the __discriminator making the correct choice__.
+
+  - 一个小小的改进：maximize the probability of the **discriminator making the incorrect choice**
+
+  - 本文的做法：
+
+    - In this assignment, we will alternate the following updates:
+
+    1. Update the generator ($G$) to maximize the probability of the discriminator making the incorrect choice on generated data:
+         $$\underset{G}{\text{maximize}}\;  \mathbb{E}_{z \sim p(z)}\left[\log D(G(z))\right]$$
+    2. Update the discriminator ($D$), to maximize the probability of the discriminator making the correct choice on real and generated data:
+         $$\underset{D}{\text{maximize}}\; \mathbb{E}_{x \sim p_\text{data}}\left[\log D(x)\right] + \mathbb{E}_{z \sim p(z)}\left[\log \left(1-D(G(z))\right)\right]​$$
+
+- **pytorch*核心代码***
+
+  ![1556638318995](gan_3.png)
+
+  ```python
+  # bce_loss: the binary cross entropy loss
+  def discriminator_loss(logits_real, logits_fake):
+      """
+      Computes the discriminator loss described above.
+      
+      Inputs:
+      - logits_real: PyTorch Tensor of shape (N,) giving scores for the real data.
+      - logits_fake: PyTorch Tensor of shape (N,) giving scores for the fake data.
+      
+      Returns:
+      - loss: PyTorch Tensor containing (scalar) the loss for the discriminator.
+      """
+      loss = None
+      
+      true_labels = torch.ones_like(logits_real).type(dtype)
+      real_image_loss = bce_loss(logits_real, true_labels)
+      fake_image_loss = bce_loss(logits_fake, 1 - true_labels)
+      loss = real_image_loss + fake_image_loss
+      
+      return loss
+  
+  def generator_loss(logits_fake):
+      """
+      Computes the generator loss described above.
+  
+      Inputs:
+      - logits_fake: PyTorch Tensor of shape (N,) giving scores for the fake data.
+      
+      Returns:
+      - loss: PyTorch Tensor containing the (scalar) loss for the generator.
+      """
+      loss = None
+      
+      true_labels = torch.ones_like(logits_fake).type(dtype)
+      loss = bce_loss(logits_fake, true_labels)
+      
+      return loss
+  ```
+
+  ***训练代码***
+
+  ```python
+  def run_a_gan(D, G, D_solver, G_solver, discriminator_loss, generator_loss, show_every=250,batch_size=128, noise_size=96, num_epochs=10):
+      """
+      Train a GAN!
+      
+      Inputs:
+      - D, G: PyTorch models for the discriminator and generator
+      - D_solver, G_solver: torch.optim Optimizers to use for training the
+        discriminator and generator.
+      - discriminator_loss, generator_loss: Functions to use for computing the generator and discriminator loss, respectively.
+      - show_every: Show samples after every show_every iterations.
+      - batch_size: Batch size to use for training.
+      - noise_size: Dimension of the noise to use as input to the generator.
+      - num_epochs: Number of epochs over the training dataset to use for training.
+      """
+      iter_count = 0
+      for epoch in range(num_epochs):
+          for x, _ in loader_train: # loader_train是mnist数据集的加载
+              if len(x) != batch_size: # 只取完整一个的batch
+                  continue
+              D_solver.zero_grad()
+              real_data = x.type(dtype) # x全是训练集里面的样本，因此都是real的
+              logits_real = D(2* (real_data - 0.5)).type(dtype) # 送入discriminator模型
+  
+              g_fake_seed = sample_noise(batch_size, noise_size).type(dtype) # 从noise开始生成fake样本
+              fake_images = G(g_fake_seed).detach() # 送入generator模型
+              logits_fake = D(fake_images.view(batch_size, 1, 28, 28)) # 得到fake的输出
+  
+              d_total_error = discriminator_loss(logits_real, logits_fake) # 努力把fake检查出来
+              d_total_error.backward()
+              D_solver.step()
+  
+              G_solver.zero_grad()
+              g_fake_seed = sample_noise(batch_size, noise_size).type(dtype)
+              fake_images = G(g_fake_seed)
+  
+              gen_logits_fake = D(fake_images.view(batch_size, 1, 28, 28))
+              g_error = generator_loss(gen_logits_fake) # 努力隐瞒fake成为real
+              g_error.backward()
+              G_solver.step()
+  
+              if (iter_count % show_every == 0):
+                  print('Iter: {}, D: {:.4}, G:{:.4}'.format(iter_count,d_total_error.item(),g_error.item()))
+                  imgs_numpy = fake_images.data.cpu().numpy()
+                  show_images(imgs_numpy[0:16])
+                  plt.show()
+                  print()
+              iter_count += 1
+  ```
+
+
+
+### Least Squares GAN
+
+- GAN另一种稳定的实现形式：<https://arxiv.org/abs/1611.04076>
+
+- *唯一改动的部分即为***loss函数**
+
+  ![1556638622485](gan_4.png)
+
+```python
+def ls_discriminator_loss(scores_real, scores_fake):
+    """
+    Compute the Least-Squares GAN loss for the discriminator.
+    
+    Inputs:
+    - scores_real: PyTorch Tensor of shape (N,) giving scores for the real data.
+    - scores_fake: PyTorch Tensor of shape (N,) giving scores for the fake data.
+    
+    Outputs:
+    - loss: A PyTorch Tensor containing the loss.
+    """
+    loss = None
+    
+    true_labels = torch.ones_like(scores_real).type(dtype)
+    loss = 0.5 * (torch.mean((scores_real - true_labels)**2) + torch.mean(scores_fake **2))
+    
+    return loss
+
+def ls_generator_loss(scores_fake):
+    """
+    Computes the Least-Squares GAN loss for the generator.
+    
+    Inputs:
+    - scores_fake: PyTorch Tensor of shape (N,) giving scores for the fake data.
+    
+    Outputs:
+    - loss: A PyTorch Tensor containing the loss.
+    """
+    loss = None
+    true_labels = torch.ones_like(scores_fake)
+    
+    loss = 0.5 * torch.mean((scores_fake - true_labels)**2)
+    return loss
+```
+
+### Deeply Convolutional GANs（DCGAN）
+
+- 由于前面的网络结构太简单，没有*CNN*层，无法学到一些类似“边界”的信息，接下来会用*CNN*作为一个类似于特征提取器的网络
+
+- 论文基础：<https://arxiv.org/abs/1511.06434>
+
+- 关于`nn.ConvTranspose2d()`:<https://blog.csdn.net/FortiLZ/article/details/81051942>
+
+  - ConvTranspose2d 实现的是 Conv2d 的逆过程，也就是将一张 m×m m \times mm×m 的图片，upsampling 到 n×n n \times nn×n，这里 n>m n &gt; mn>m。 ConvTranspose2d 的实现方法，与 Assignment 2 | ConvolutionalNetworks 计算 dx 的方法完全相同。实际上，不论在 PyTorch 还是在 TensorFlow 里面，ConvTranspose2d 的实现和计算 dx 的梯度的实现，使用的是同一段代码。在 PyTorch 的文档里明确说明了这一点：
+
+  > This module can be seen as the gradient of Conv2d with respect to its input.
+
+```shell
+
+# Discriminator:
+Sequential(
+  (0): Conv2d(1, 32, kernel_size=(5, 5), stride=(1, 1))
+  (1): LeakyReLU(negative_slope=0.01)
+  (2): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+  (3): Conv2d(32, 64, kernel_size=(5, 5), stride=(1, 1))
+  (4): LeakyReLU(negative_slope=0.01)
+  (5): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+  (6): Flatten()
+  (7): Linear(in_features=1024, out_features=1024, bias=True)
+  (8): LeakyReLU(negative_slope=0.01)
+  (9): Linear(in_features=1024, out_features=1, bias=True)
+)
+
+# Generator:
+Sequential(
+  (0): Linear(in_features=96, out_features=1024, bias=True)
+  (1): ReLU()
+  (2): BatchNorm1d(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (3): Linear(in_features=1024, out_features=6272, bias=True)
+  (4): ReLU()
+  (5): BatchNorm1d(6272, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (6): Unflatten()
+  (7): ConvTranspose2d(128, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+  (8): ReLU()
+  (9): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (10): ConvTranspose2d(64, 1, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+  (11): Tanh()
+  (12): Flatten()
+)
+```
