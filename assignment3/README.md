@@ -325,3 +325,55 @@
           ########################################################################
   ```
 
+
+
+## StyleTransfer
+
+- 论文基础：<https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/Gatys_Image_Style_Transfer_CVPR_2016_paper.pdf>
+
+- 博客：<https://blog.csdn.net/qq_25217875/article/details/82634487>
+
+  > We will do this by first formulating a loss function that matches the content and style of each respective image in the feature space of a deep network, and then performing gradient descent on the pixels of the image itself.
+  >
+  > 通过一个已经训练好的模型（这里采用的是ImageNet上训练好的模型[SqueezeNet](<https://arxiv.org/abs/1602.07360>)），在模型的feature层（应该是中间层）对style和content的loss进行反向传播，使得其生成新的像素点
+
+- 原文的一个小bug：在`extract_features`函数里，未对**x**的**device**进行讨论，可以加上`x.type(dtype)`进行转换
+
+- 损失函数的构成：
+
+  **内容损失*content loss* + 风格损失*style loss* + 整体多样性正则化*Total-variation regularization***
+
+  - **内容损失*Content loss***
+
+    - ![1556607556210](st_1.png)
+
+  - **风格损失*Style loss***
+
+    - ![1556607751522](st_2.png)
+
+  - **整体多样性正则化*Total-variation regularization***
+
+    - ![1556609037846](st_3.png)
+
+    - *这个的实现很考验思路和技术......*可以把矩阵平移一下，再作差，但要注意平移后要少一个元素
+
+      ```python
+          shape = img.size()
+          row_cur = img[:, :, :-1, :]
+          row_lat = img[:, :, 1:, :]
+          col_cur = img[:, :, :, :-1]
+          col_lat = img[:, :, :, 1:]
+          row_result = row_lat - row_cur
+          col_result = col_lat - col_cur
+          row_result = row_result * row_result
+          col_result = col_result * col_result    
+          result = tv_weight * (torch.sum(row_result) + torch.sum(col_result))
+          return result
+      ```
+
+- **最终实现：**
+
+  直接求和，进行反向传播，注意将img的grad打开，以便于更新img产生新图
+
+-  **特征反演 Feature Inversion**：这里如果将 **特征权值style_weight设置为0**，即相当于从一个噪声图片生成原图
+
