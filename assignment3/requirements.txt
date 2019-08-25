@@ -38,7 +38,7 @@ mistune>=0.8.1
 multidict==4.3.1
 nbconvert==4.1.0
 nbformat==4.0.1
-nltk==3.2.2
+nltk>=3.4.5
 notebook>=5.7.8
 numexpr==2.6.5
 numpy==1.13.3
@@ -63,5 +63,5 @@ termcolor==1.1.0
 terminado==0.5
 tornado==4.3
 traitlets==4.0.0
-Werkzeug==0.14.1
+werkzeug>=0.15.3
 yarl==1.2.4
