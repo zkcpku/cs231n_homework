@@ -1,6 +1,6 @@
 Cython==0.25.2Jinja2>=2.10.1MarkupSafe==0.23
 Pillow>=3.3.2
-Pygments==2.0.2
+Pygments==2.7.4
 appnope==0.1.0
 argparse==1.2.1
 backports-abc==0.4
